@@ -1,0 +1,379 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { useSettings } from '../../hooks/useSettings';
+import { useConversations } from '../../hooks/useConversations';
+import { useWebSocket } from '../../hooks/useWebSocket_replit';
+import { getFileIcon, validateFile } from '../../utils/fileUtils';
+import { isSearchActive } from '../../utils/searchUtils';
+import { MessageRole } from '../../constants/messageTypes';
+import Sidebar from '../Sidebar/Sidebar';
+import ChatArea from '../ChatArea/ChatArea';
+import ArtifactPanel from '../ArtifactPanel/ArtifactPanel';
+import SettingsModal from '../Settings/SettingsModal';
+
+// Replit 환경에서 백엔드 URL (환경변수로 관리)
+const API_URL = process.env.REACT_APP_API_URL || "https://your-backend-repl-url.repl.co";
+
+const ChatInterface = () => {
+  // 커스텀 훅 사용
+  const { darkMode, fontSize, toggleDarkMode, updateFontSize, resetSettings } = useSettings();
+  const {
+    conversations,
+    activeConversation,
+    filteredConversations,
+    searchQuery,
+    setSearchQuery,
+    searchMode,
+    setSearchMode,
+    startNewChat,
+    switchConversation,
+    deleteConversation,
+    deleteAllConversations,
+    addMessage,
+    updateConversationTitle
+  } = useConversations();
+
+  // WebSocket 연결
+  const { isConnected, lastMessage, error, sendMessage, sendFile } = useWebSocket(API_URL);
+
+  // 로컬 상태
+  const [messages, setMessages] = useState([]);
+  const [inputValue, setInputValue] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [artifactOpen, setArtifactOpen] = useState(true);
+  const [copiedId, setCopiedId] = useState(null);
+  const [attachedFiles, setAttachedFiles] = useState([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  
+  // refs
+  const messagesEndRef = useRef(null);
+  const textareaRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  // 검색 상태 관리
+  const isSearching = isSearchActive(searchQuery);
+
+  // 대화 변경 시 메시지 업데이트
+  useEffect(() => {
+    const currentConv = conversations.find(c => c.id === activeConversation);
+    if (currentConv) {
+      setMessages(currentConv.messages || []);
+    }
+  }, [activeConversation, conversations]);
+
+  // WebSocket 메시지 처리
+  useEffect(() => {
+    if (lastMessage) {
+      if (lastMessage.type === 'assistant') {
+        const aiResponse = {
+          id: Date.now(),
+          role: MessageRole.ASSISTANT,
+          content: lastMessage.content,
+          timestamp: lastMessage.timestamp
+        };
+        
+        addMessage(activeConversation, aiResponse);
+        setMessages(prev => [...prev, aiResponse]);
+        setIsTyping(false);
+      } else if (lastMessage.type === 'file_response') {
+        const fileResponse = {
+          id: Date.now(),
+          role: MessageRole.ASSISTANT,
+          content: lastMessage.content,
+          timestamp: lastMessage.timestamp
+        };
+        
+        addMessage(activeConversation, fileResponse);
+        setMessages(prev => [...prev, fileResponse]);
+      }
+    }
+  }, [lastMessage, addMessage, activeConversation]);
+
+  // 메시지 스크롤
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // 폰트 크기 클래스
+  const getFontSizeClass = () => {
+    switch(fontSize) {
+      case 'small': return 'text-xs';
+      case 'large': return 'text-base';
+      default: return 'text-sm';
+    }
+  };
+
+  // 텍스트 하이라이팅
+  const highlightText = (text, query, isDark) => {
+    if (!query) return text;
+    const regex = new RegExp(`(${query})`, 'gi');
+    return text.replace(regex, `<mark class="${isDark ? 'bg-yellow-600/30 text-yellow-300' : 'bg-yellow-200 text-yellow-800'}">$1</mark>`);
+  };
+
+  // 파일 처리
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files);
+    files.forEach(file => {
+      try {
+        validateFile(file);
+        const fileId = Date.now() + Math.random();
+        const fileItem = {
+          id: fileId,
+          file,
+          preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null
+        };
+        setAttachedFiles(prev => [...prev, fileItem]);
+      } catch (error) {
+        alert(error.message);
+      }
+    });
+    e.target.value = '';
+  };
+
+  const removeFile = (fileId) => {
+    setAttachedFiles(prev => {
+      const fileItem = prev.find(f => f.id === fileId);
+      if (fileItem?.preview) {
+        URL.revokeObjectURL(fileItem.preview);
+      }
+      return prev.filter(f => f.id !== fileId);
+    });
+  };
+
+  // 드래그 앤 드롭
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    const files = Array.from(e.dataTransfer.files);
+    files.forEach(file => {
+      try {
+        validateFile(file);
+        const fileId = Date.now() + Math.random();
+        const fileItem = {
+          id: fileId,
+          file,
+          preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null
+        };
+        setAttachedFiles(prev => [...prev, fileItem]);
+      } catch (error) {
+        alert(error.message);
+      }
+    });
+  };
+
+  // 메시지 전송
+  const handleSend = () => {
+    if (!inputValue.trim() && attachedFiles.length === 0) return;
+
+    const userMessage = {
+      id: Date.now(),
+      role: MessageRole.USER,
+      content: inputValue.trim(),
+      files: attachedFiles.map(f => ({
+        name: f.file.name,
+        type: f.file.type,
+        size: f.file.size,
+        preview: f.preview
+      }))
+    };
+
+    // 사용자 메시지 추가
+    addMessage(activeConversation, userMessage);
+    setMessages(prev => [...prev, userMessage]);
+    
+    // WebSocket으로 메시지 전송
+    if (sendMessage(inputValue.trim())) {
+      setIsTyping(true);
+    } else {
+      alert('서버에 연결할 수 없습니다. 연결 상태를 확인해주세요.');
+    }
+
+    // 첨부 파일이 있다면 파일 정보도 전송
+    attachedFiles.forEach(fileItem => {
+      sendFile({
+        name: fileItem.file.name,
+        type: fileItem.file.type,
+        size: fileItem.file.size
+      });
+    });
+
+    setInputValue('');
+    setAttachedFiles([]);
+  };
+
+  // 메시지 복사
+  const handleCopy = async (text, messageId) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(messageId);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (error) {
+      console.error('복사 실패:', error);
+    }
+  };
+
+  // 마크다운 스타일
+  const markdownStyles = `
+    .markdown-content {
+      word-break: break-word;
+    }
+    .markdown-content h1, .markdown-content h2, .markdown-content h3 {
+      margin-top: 1rem;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+    }
+    .markdown-content h1 { font-size: 1.5rem; }
+    .markdown-content h2 { font-size: 1.25rem; }
+    .markdown-content h3 { font-size: 1.125rem; }
+    .markdown-content p { margin-bottom: 0.5rem; }
+    .markdown-content ul, .markdown-content ol {
+      margin-left: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .markdown-content li { margin-bottom: 0.25rem; }
+    .markdown-content blockquote {
+      border-left: 4px solid #e5e7eb;
+      padding-left: 1rem;
+      margin: 1rem 0;
+      font-style: italic;
+    }
+    .markdown-content pre {
+      background-color: #f3f4f6;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+    .markdown-content code {
+      background-color: #f3f4f6;
+      padding: 0.125rem 0.25rem;
+      border-radius: 0.25rem;
+      font-family: 'Courier New', monospace;
+    }
+    .markdown-content pre code {
+      background-color: transparent;
+      padding: 0;
+    }
+    .markdown-content a {
+      color: #3b82f6;
+      text-decoration: underline;
+    }
+    .markdown-content a:hover {
+      color: #2563eb;
+    }
+    .search-highlight {
+      background-color: #fef3c7;
+      padding: 0.125rem 0.25rem;
+      border-radius: 0.25rem;
+    }
+    .dark .search-highlight {
+      background-color: #92400e;
+      color: #fef3c7;
+    }
+  `;
+
+  return (
+    <>
+      {/* 연결 상태 표시 */}
+      {!isConnected && (
+        <div className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-lg ${
+          error ? 'bg-red-500 text-white' : 'bg-yellow-500 text-black'
+        }`}>
+          {error ? `연결 오류: ${error}` : '서버에 연결 중...'}
+        </div>
+      )}
+
+      <SettingsModal 
+        showSettings={showSettings}
+        setShowSettings={setShowSettings}
+        darkMode={darkMode}
+        setDarkMode={toggleDarkMode}
+        fontSize={fontSize}
+        setFontSize={updateFontSize}
+        activeConversation={activeConversation}
+        conversations={conversations}
+        deleteConversation={deleteConversation}
+        deleteAllConversations={deleteAllConversations}
+        resetSettings={resetSettings}
+      />
+      
+      <div className={`flex h-screen ${darkMode ? 'dark bg-gray-900' : 'bg-gray-50'}`}>
+        <style dangerouslySetInnerHTML={{ __html: markdownStyles }} />
+
+        <Sidebar
+          sidebarOpen={sidebarOpen}
+          darkMode={darkMode}
+          fontSize={fontSize}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          searchMode={searchMode}
+          setSearchMode={setSearchMode}
+          conversations={conversations}
+          activeConversation={activeConversation}
+          filteredConversations={filteredConversations}
+          isSearching={isSearching}
+          startNewChat={startNewChat}
+          switchConversation={switchConversation}
+          highlightText={highlightText}
+          getFontSizeClass={getFontSizeClass}
+        />
+
+        <ChatArea
+          darkMode={darkMode}
+          setDarkMode={toggleDarkMode}
+          fontSize={fontSize}
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          artifactOpen={artifactOpen}
+          setArtifactOpen={setArtifactOpen}
+          showSettings={showSettings}
+          setShowSettings={setShowSettings}
+          conversations={conversations}
+          activeConversation={activeConversation}
+          messages={messages}
+          isTyping={isTyping}
+          inputValue={inputValue}
+          setInputValue={setInputValue}
+          attachedFiles={attachedFiles}
+          isDragging={isDragging}
+          searchQuery={searchQuery}
+          isSearching={isSearching}
+          copiedId={copiedId}
+          messagesEndRef={messagesEndRef}
+          textareaRef={textareaRef}
+          fileInputRef={fileInputRef}
+          handleSend={handleSend}
+          handleFileSelect={handleFileSelect}
+          handleDragOver={handleDragOver}
+          handleDragLeave={handleDragLeave}
+          handleDrop={handleDrop}
+          removeFile={removeFile}
+          handleCopy={handleCopy}
+          getFontSizeClass={getFontSizeClass}
+        />
+
+        <ArtifactPanel
+          artifactOpen={artifactOpen}
+          setArtifactOpen={setArtifactOpen}
+          darkMode={darkMode}
+          searchQuery={searchQuery}
+          filteredConversations={filteredConversations}
+        />
+      </div>
+    </>
+  );
+};
+
+export default ChatInterface; 

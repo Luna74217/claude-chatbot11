@@ -1,0 +1,8 @@
+# 백엔드 API URL (Replit URL로 변경)
+REACT_APP_API_URL=https://your-backend-repl-url.repl.co
+
+# 개발 모드
+REACT_APP_DEV_MODE=true
+
+# WebSocket URL (자동으로 백엔드 URL에서 생성)
+REACT_APP_WS_URL=wss://your-backend-repl-url.repl.co 

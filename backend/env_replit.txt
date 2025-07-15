@@ -1,0 +1,19 @@
+# Claude API 설정
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+
+# Replit 서버 설정
+HOST=0.0.0.0
+PORT=8080
+
+# 보안 설정
+SECRET_KEY=your_secret_key_here
+DEBUG=True
+
+# CORS 설정 - Replit에서는 모든 origin 허용
+ALLOWED_ORIGINS=*
+
+# 로깅 설정
+LOG_LEVEL=INFO
+
+# Replit 데이터베이스 설정 (선택사항)
+REPLIT_DB_URL=your_replit_db_url_here 

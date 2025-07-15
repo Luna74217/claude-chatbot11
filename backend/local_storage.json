@@ -1,0 +1,27 @@
+{
+  "settings:test_user_456": {
+    "theme": "dark",
+    "language": "ko",
+    "streaming": true,
+    "auto_save": true,
+    "updated_at": "2025-07-07T12:21:03.181384"
+  },
+  "analytics:test_session_123": {
+    "message_count": 10,
+    "avg_response_time": 2.5,
+    "topics": [
+      "프로그래밍",
+      "AI",
+      "웹개발"
+    ],
+    "sentiment": {
+      "positive": 0.6,
+      "neutral": 0.3,
+      "negative": 0.1
+    },
+    "analyzed_at": "2025-07-07T12:21:03.190355"
+  },
+  "session:": {
+    "updated_at": "2025-07-07T12:21:03.282048"
+  }
+}

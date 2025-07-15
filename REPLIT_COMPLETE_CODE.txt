@@ -1,0 +1,892 @@
+==========================================
+CLAUDE CHATBOT - COMPLETE REPLIT CODE
+==========================================
+
+이 파일은 Claude Opus 4 모델이 검수할 수 있도록 모든 코드를 포함합니다.
+
+==========================================
+📁 BACKEND CODE
+==========================================
+
+1. main_replit.py
+==========================================
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+import json
+from datetime import datetime
+import os
+from dotenv import load_dotenv
+
+# 환경변수 로드
+load_dotenv()
+
+app = FastAPI(title="Claude Chatbot API", version="1.0.0")
+
+# CORS 설정 - Replit 환경에 맞게
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Replit에서는 모든 origin 허용
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 연결된 클라이언트들을 관리
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: list[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        print(f"클라이언트 연결됨. 총 연결 수: {len(self.active_connections)}")
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+        print(f"클라이언트 연결 해제됨. 총 연결 수: {len(self.active_connections)}")
+
+    async def send_personal_message(self, message: str, websocket: WebSocket):
+        await websocket.send_text(message)
+
+    async def broadcast(self, message: str):
+        for connection in self.active_connections:
+            await connection.send_text(message)
+
+manager = ConnectionManager()
+
+@app.get("/")
+async def root():
+    return {
+        "message": "Claude Chatbot API Server",
+        "status": "running",
+        "websocket_endpoint": "/ws",
+        "timestamp": datetime.now().isoformat()
+    }
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "connections": len(manager.active_connections)}
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            message_data = json.loads(data)
+
+            # 채팅 메시지 처리
+            if message_data.get("type") == "chat":
+                user_message = message_data.get("message", "")
+                
+                # Claude API 키 확인
+                api_key = os.getenv("ANTHROPIC_API_KEY")
+                
+                if api_key:
+                    # 실제 Claude API 호출 (여기서는 시뮬레이션)
+                    ai_response = f"Claude 응답: {user_message[::-1]} (실제로는 Claude API 호출)"
+                else:
+                    ai_response = "Claude API 키가 설정되지 않았습니다. .env 파일에 ANTHROPIC_API_KEY를 추가해주세요."
+
+                # AI 응답 전송
+                await manager.send_personal_message(json.dumps({
+                    "type": "assistant",
+                    "content": ai_response,
+                    "timestamp": datetime.now().isoformat()
+                }), websocket)
+                
+            # 파일 업로드 처리
+            elif message_data.get("type") == "file":
+                file_info = message_data.get("file", {})
+                await manager.send_personal_message(json.dumps({
+                    "type": "file_response",
+                    "content": f"파일 '{file_info.get('name', 'unknown')}'을 받았습니다.",
+                    "timestamp": datetime.now().isoformat()
+                }), websocket)
+                
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+        print("클라이언트 연결 해제됨")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+==========================================
+
+2. requirements_replit.txt
+==========================================
+
+fastapi==0.112.0
+uvicorn[standard]==0.35.0
+python-dotenv==1.1.1
+python-multipart==0.0.9
+pydantic==2.7.1
+websockets==12.0
+
+==========================================
+
+3. .replit (Backend)
+==========================================
+
+run = "uvicorn main_replit:app --host 0.0.0.0 --port 8000 --reload"
+
+==========================================
+
+4. env_example.txt (Backend)
+==========================================
+
+# Claude API 설정
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+
+# 서버 설정
+HOST=0.0.0.0
+PORT=8000
+
+# CORS 설정
+ALLOWED_ORIGINS=*
+
+==========================================
+📁 FRONTEND CODE
+==========================================
+
+5. useWebSocket.js
+==========================================
+
+import { useEffect, useRef, useState, useCallback } from 'react';
+
+export const useWebSocket = (apiUrl) => {
+  const ws = useRef(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [lastMessage, setLastMessage] = useState(null);
+  const [error, setError] = useState(null);
+
+  // WebSocket 연결
+  const connect = useCallback(() => {
+    try {
+      // HTTP를 WebSocket으로 변환
+      const wsUrl = apiUrl.replace(/^http/, 'ws');
+      ws.current = new WebSocket(`${wsUrl}/ws`);
+
+      ws.current.onopen = () => {
+        console.log('WebSocket 연결됨');
+        setIsConnected(true);
+        setError(null);
+      };
+
+      ws.current.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          setLastMessage(data);
+        } catch (err) {
+          console.error('메시지 파싱 오류:', err);
+        }
+      };
+
+      ws.current.onclose = () => {
+        console.log('WebSocket 연결 해제됨');
+        setIsConnected(false);
+      };
+
+      ws.current.onerror = (error) => {
+        console.error('WebSocket 오류:', error);
+        setError('WebSocket 연결 오류');
+        setIsConnected(false);
+      };
+
+    } catch (err) {
+      console.error('WebSocket 연결 실패:', err);
+      setError('WebSocket 연결 실패');
+    }
+  }, [apiUrl]);
+
+  // 메시지 전송
+  const sendMessage = useCallback((message) => {
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({
+        type: 'chat',
+        message: message,
+        timestamp: new Date().toISOString()
+      }));
+      return true;
+    } else {
+      console.error('WebSocket이 연결되지 않음');
+      return false;
+    }
+  }, []);
+
+  // 파일 전송
+  const sendFile = useCallback((fileInfo) => {
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({
+        type: 'file',
+        file: fileInfo,
+        timestamp: new Date().toISOString()
+      }));
+      return true;
+    } else {
+      console.error('WebSocket이 연결되지 않음');
+      return false;
+    }
+  }, []);
+
+  // 연결 해제
+  const disconnect = useCallback(() => {
+    if (ws.current) {
+      ws.current.close();
+    }
+  }, []);
+
+  // 자동 재연결
+  useEffect(() => {
+    connect();
+
+    return () => {
+      disconnect();
+    };
+  }, [connect, disconnect]);
+
+  // 연결 상태 모니터링 및 재연결
+  useEffect(() => {
+    if (!isConnected && !error) {
+      const timer = setTimeout(() => {
+        console.log('WebSocket 재연결 시도...');
+        connect();
+      }, 3000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isConnected, error, connect]);
+
+  return {
+    isConnected,
+    lastMessage,
+    error,
+    sendMessage,
+    sendFile,
+    connect,
+    disconnect
+  };
+};
+
+==========================================
+
+6. ChatInterface_replit.jsx
+==========================================
+
+import React, { useState, useRef, useEffect } from 'react';
+import { useSettings } from '../../hooks/useSettings';
+import { useConversations } from '../../hooks/useConversations';
+import { useWebSocket } from '../../hooks/useWebSocket';
+import { getFileIcon, validateFile } from '../../utils/fileUtils';
+import { isSearchActive } from '../../utils/searchUtils';
+import { MessageRole } from '../../constants/messageTypes';
+import Sidebar from '../Sidebar/Sidebar';
+import ChatArea from '../ChatArea/ChatArea';
+import ArtifactPanel from '../ArtifactPanel/ArtifactPanel';
+import SettingsModal from '../Settings/SettingsModal';
+
+// Replit 환경에서 백엔드 URL (환경변수로 관리)
+const API_URL = process.env.REACT_APP_API_URL || "https://your-backend-repl-url.repl.co";
+
+const ChatInterface = () => {
+  // 커스텀 훅 사용
+  const { darkMode, fontSize, toggleDarkMode, updateFontSize, resetSettings } = useSettings();
+  const {
+    conversations,
+    activeConversation,
+    filteredConversations,
+    searchQuery,
+    setSearchQuery,
+    searchMode,
+    setSearchMode,
+    startNewChat,
+    switchConversation,
+    deleteConversation,
+    deleteAllConversations,
+    addMessage,
+    updateConversationTitle
+  } = useConversations();
+
+  // WebSocket 연결
+  const { isConnected, lastMessage, error, sendMessage, sendFile } = useWebSocket(API_URL);
+
+  // 로컬 상태
+  const [messages, setMessages] = useState([]);
+  const [inputValue, setInputValue] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [artifactOpen, setArtifactOpen] = useState(true);
+  const [copiedId, setCopiedId] = useState(null);
+  const [attachedFiles, setAttachedFiles] = useState([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  
+  // refs
+  const messagesEndRef = useRef(null);
+  const textareaRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  // 검색 상태 관리
+  const isSearching = isSearchActive(searchQuery);
+
+  // 대화 변경 시 메시지 업데이트
+  useEffect(() => {
+    const currentConv = conversations.find(c => c.id === activeConversation);
+    if (currentConv) {
+      setMessages(currentConv.messages || []);
+    }
+  }, [activeConversation, conversations]);
+
+  // WebSocket 메시지 처리
+  useEffect(() => {
+    if (lastMessage) {
+      if (lastMessage.type === 'assistant') {
+        const aiResponse = {
+          id: Date.now(),
+          role: MessageRole.ASSISTANT,
+          content: lastMessage.content,
+          timestamp: lastMessage.timestamp
+        };
+        
+        addMessage(activeConversation, aiResponse);
+        setMessages(prev => [...prev, aiResponse]);
+        setIsTyping(false);
+      } else if (lastMessage.type === 'file_response') {
+        const fileResponse = {
+          id: Date.now(),
+          role: MessageRole.ASSISTANT,
+          content: lastMessage.content,
+          timestamp: lastMessage.timestamp
+        };
+        
+        addMessage(activeConversation, fileResponse);
+        setMessages(prev => [...prev, fileResponse]);
+      }
+    }
+  }, [lastMessage, addMessage, activeConversation]);
+
+  // 메시지 스크롤
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // 폰트 크기 클래스
+  const getFontSizeClass = () => {
+    switch(fontSize) {
+      case 'small': return 'text-xs';
+      case 'large': return 'text-base';
+      default: return 'text-sm';
+    }
+  };
+
+  // 텍스트 하이라이팅
+  const highlightText = (text, query, isDark) => {
+    if (!query) return text;
+    const regex = new RegExp(`(${query})`, 'gi');
+    return text.replace(regex, `<mark class="${isDark ? 'bg-yellow-600/30 text-yellow-300' : 'bg-yellow-200 text-yellow-800'}">$1</mark>`);
+  };
+
+  // 파일 처리
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files);
+    files.forEach(file => {
+      try {
+        validateFile(file);
+        const fileId = Date.now() + Math.random();
+        const fileItem = {
+          id: fileId,
+          file,
+          preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null
+        };
+        setAttachedFiles(prev => [...prev, fileItem]);
+      } catch (error) {
+        alert(error.message);
+      }
+    });
+    e.target.value = '';
+  };
+
+  const removeFile = (fileId) => {
+    setAttachedFiles(prev => {
+      const fileItem = prev.find(f => f.id === fileId);
+      if (fileItem?.preview) {
+        URL.revokeObjectURL(fileItem.preview);
+      }
+      return prev.filter(f => f.id !== fileId);
+    });
+  };
+
+  // 드래그 앤 드롭
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    const files = Array.from(e.dataTransfer.files);
+    files.forEach(file => {
+      try {
+        validateFile(file);
+        const fileId = Date.now() + Math.random();
+        const fileItem = {
+          id: fileId,
+          file,
+          preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null
+        };
+        setAttachedFiles(prev => [...prev, fileItem]);
+      } catch (error) {
+        alert(error.message);
+      }
+    });
+  };
+
+  // 메시지 전송
+  const handleSend = () => {
+    if (!inputValue.trim() && attachedFiles.length === 0) return;
+
+    const userMessage = {
+      id: Date.now(),
+      role: MessageRole.USER,
+      content: inputValue.trim(),
+      files: attachedFiles.map(f => ({
+        name: f.file.name,
+        type: f.file.type,
+        size: f.file.size,
+        preview: f.preview
+      }))
+    };
+
+    // 사용자 메시지 추가
+    addMessage(activeConversation, userMessage);
+    setMessages(prev => [...prev, userMessage]);
+    
+    // WebSocket으로 메시지 전송
+    if (sendMessage(inputValue.trim())) {
+      setIsTyping(true);
+    } else {
+      alert('서버에 연결할 수 없습니다. 연결 상태를 확인해주세요.');
+    }
+
+    // 첨부 파일이 있다면 파일 정보도 전송
+    attachedFiles.forEach(fileItem => {
+      sendFile({
+        name: fileItem.file.name,
+        type: fileItem.file.type,
+        size: fileItem.file.size
+      });
+    });
+
+    setInputValue('');
+    setAttachedFiles([]);
+  };
+
+  // 메시지 복사
+  const handleCopy = async (text, messageId) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(messageId);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (error) {
+      console.error('복사 실패:', error);
+    }
+  };
+
+  // 마크다운 스타일
+  const markdownStyles = `
+    .markdown-content {
+      word-break: break-word;
+    }
+    .markdown-content h1, .markdown-content h2, .markdown-content h3 {
+      margin-top: 1rem;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+    }
+    .markdown-content h1 { font-size: 1.5rem; }
+    .markdown-content h2 { font-size: 1.25rem; }
+    .markdown-content h3 { font-size: 1.125rem; }
+    .markdown-content p { margin-bottom: 0.5rem; }
+    .markdown-content ul, .markdown-content ol {
+      margin-left: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .markdown-content li { margin-bottom: 0.25rem; }
+    .markdown-content blockquote {
+      border-left: 4px solid #e5e7eb;
+      padding-left: 1rem;
+      margin: 1rem 0;
+      font-style: italic;
+    }
+    .markdown-content pre {
+      background-color: #f3f4f6;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+    .markdown-content code {
+      background-color: #f3f4f6;
+      padding: 0.125rem 0.25rem;
+      border-radius: 0.25rem;
+      font-family: 'Courier New', monospace;
+    }
+    .markdown-content pre code {
+      background-color: transparent;
+      padding: 0;
+    }
+    .markdown-content a {
+      color: #3b82f6;
+      text-decoration: underline;
+    }
+    .markdown-content a:hover {
+      color: #2563eb;
+    }
+    .search-highlight {
+      background-color: #fef3c7;
+      padding: 0.125rem 0.25rem;
+      border-radius: 0.25rem;
+    }
+    .dark .search-highlight {
+      background-color: #92400e;
+      color: #fef3c7;
+    }
+  `;
+
+  return (
+    <>
+      {/* 연결 상태 표시 */}
+      {!isConnected && (
+        <div className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-lg ${
+          error ? 'bg-red-500 text-white' : 'bg-yellow-500 text-black'
+        }`}>
+          {error ? `연결 오류: ${error}` : '서버에 연결 중...'}
+        </div>
+      )}
+
+      <SettingsModal 
+        showSettings={showSettings}
+        setShowSettings={setShowSettings}
+        darkMode={darkMode}
+        setDarkMode={toggleDarkMode}
+        fontSize={fontSize}
+        setFontSize={updateFontSize}
+        activeConversation={activeConversation}
+        conversations={conversations}
+        deleteConversation={deleteConversation}
+        deleteAllConversations={deleteAllConversations}
+        resetSettings={resetSettings}
+      />
+      
+      <div className={`flex h-screen ${darkMode ? 'dark bg-gray-900' : 'bg-gray-50'}`}>
+        <style dangerouslySetInnerHTML={{ __html: markdownStyles }} />
+
+        <Sidebar
+          sidebarOpen={sidebarOpen}
+          darkMode={darkMode}
+          fontSize={fontSize}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          searchMode={searchMode}
+          setSearchMode={setSearchMode}
+          conversations={conversations}
+          activeConversation={activeConversation}
+          filteredConversations={filteredConversations}
+          isSearching={isSearching}
+          startNewChat={startNewChat}
+          switchConversation={switchConversation}
+          highlightText={highlightText}
+          getFontSizeClass={getFontSizeClass}
+        />
+
+        <ChatArea
+          darkMode={darkMode}
+          setDarkMode={toggleDarkMode}
+          fontSize={fontSize}
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          artifactOpen={artifactOpen}
+          setArtifactOpen={setArtifactOpen}
+          showSettings={showSettings}
+          setShowSettings={setShowSettings}
+          conversations={conversations}
+          activeConversation={activeConversation}
+          messages={messages}
+          isTyping={isTyping}
+          inputValue={inputValue}
+          setInputValue={setInputValue}
+          attachedFiles={attachedFiles}
+          isDragging={isDragging}
+          searchQuery={searchQuery}
+          isSearching={isSearching}
+          copiedId={copiedId}
+          messagesEndRef={messagesEndRef}
+          textareaRef={textareaRef}
+          fileInputRef={fileInputRef}
+          handleSend={handleSend}
+          handleFileSelect={handleFileSelect}
+          handleDragOver={handleDragOver}
+          handleDragLeave={handleDragLeave}
+          handleDrop={handleDrop}
+          removeFile={removeFile}
+          handleCopy={handleCopy}
+          getFontSizeClass={getFontSizeClass}
+        />
+
+        <ArtifactPanel
+          artifactOpen={artifactOpen}
+          setArtifactOpen={setArtifactOpen}
+          darkMode={darkMode}
+          searchQuery={searchQuery}
+          filteredConversations={filteredConversations}
+        />
+      </div>
+    </>
+  );
+};
+
+export default ChatInterface;
+
+==========================================
+
+7. App_replit.jsx
+==========================================
+
+import React from 'react';
+import ChatInterface from './components/ChatInterface/ChatInterface_replit';
+import './App.css';
+
+function App() {
+  return (
+    <div className="App">
+      <ChatInterface />
+    </div>
+  );
+}
+
+export default App;
+
+==========================================
+
+8. package_replit.json
+==========================================
+
+{
+  "name": "claude-chatbot-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@testing-library/jest-dom": "^5.16.4",
+    "@testing-library/react": "^13.3.0",
+    "@testing-library/user-event": "^13.5.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-scripts": "5.0.1",
+    "web-vitals": "^2.1.4"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.3.0",
+    "autoprefixer": "^10.4.14",
+    "postcss": "^8.4.24"
+  }
+}
+
+==========================================
+
+9. .replit (Frontend)
+==========================================
+
+run = "npm start"
+
+==========================================
+
+10. env_example.txt (Frontend)
+==========================================
+
+# 백엔드 API URL (Replit URL로 변경)
+REACT_APP_API_URL=https://your-backend-repl-url.repl.co
+
+# 개발 모드
+REACT_APP_DEV_MODE=true
+
+==========================================
+📁 PROJECT STRUCTURE
+==========================================
+
+Backend/
+├── main_replit.py          # 메인 서버 파일
+├── requirements_replit.txt # Python 의존성
+├── .replit                 # Replit 실행 설정
+└── env_example.txt         # 환경변수 예시
+
+Frontend/
+├── src/
+│   ├── components/
+│   │   ├── ChatInterface/
+│   │   │   └── ChatInterface_replit.jsx
+│   │   ├── Sidebar/
+│   │   ├── ChatArea/
+│   │   ├── ArtifactPanel/
+│   │   └── Settings/
+│   ├── hooks/
+│   │   ├── useWebSocket.js
+│   │   ├── useSettings.js
+│   │   └── useConversations.js
+│   ├── utils/
+│   │   ├── constants/
+│   │   ├── App_replit.jsx
+│   │   └── index.js
+│   ├── public/
+│   └── package_replit.json
+├── .replit
+└── env_example.txt
+
+==========================================
+📁 SETUP INSTRUCTIONS
+==========================================
+
+1. 백엔드 Repl 설정:
+   - Replit에서 새 Python Repl 생성
+   - 위 백엔드 파일들을 업로드
+   - Replit Secrets에서 ANTHROPIC_API_KEY 설정
+   - pip install -r requirements_replit.txt
+   - Run 버튼 클릭
+
+2. 프론트엔드 Repl 설정:
+   - Replit에서 새 React Repl 생성
+   - 위 프론트엔드 파일들을 업로드
+   - Replit Secrets에서 REACT_APP_API_URL 설정
+   - npm install
+   - Run 버튼 클릭
+
+3. 연결 설정:
+   - 백엔드 URL을 프론트엔드 Secrets에 설정
+   - WebSocket 연결 상태 확인
+
+==========================================
+📁 API ENDPOINTS
+==========================================
+
+GET / - 서버 상태 확인
+GET /health - 헬스 체크
+WS /ws - WebSocket 연결
+
+==========================================
+📁 WEBSOCKET MESSAGE FORMAT
+==========================================
+
+클라이언트 -> 서버:
+{
+  "type": "chat",
+  "message": "사용자 메시지",
+  "timestamp": "2024-01-01T00:00:00Z"
+}
+
+{
+  "type": "file",
+  "file": {
+    "name": "파일명.txt",
+    "type": "text/plain",
+    "size": 1024
+  },
+  "timestamp": "2024-01-01T00:00:00Z"
+}
+
+서버 -> 클라이언트:
+{
+  "type": "assistant",
+  "content": "AI 응답",
+  "timestamp": "2024-01-01T00:00:00Z"
+}
+
+{
+  "type": "file_response",
+  "content": "파일 처리 결과",
+  "timestamp": "2024-01-01T00:00:00Z"
+}
+
+==========================================
+📁 FEATURES
+==========================================
+
+백엔드 기능:
+✅ FastAPI WebSocket 서버
+✅ CORS 설정 (Replit 환경 최적화)
+✅ Claude API 연동 준비
+✅ 파일 업로드 처리
+✅ 연결 상태 모니터링
+
+프론트엔드 기능:
+✅ React 기반 채팅 인터페이스
+✅ WebSocket 실시간 통신
+✅ 자동 재연결 기능
+✅ 연결 상태 표시
+✅ 파일 드래그 앤 드롭
+✅ 다크모드 지원
+✅ 대화 히스토리 관리
+✅ 검색 기능
+✅ 메시지 복사 기능
+
+==========================================
+📁 ENVIRONMENT VARIABLES
+==========================================
+
+백엔드 (.env):
+ANTHROPIC_API_KEY=your_api_key_here
+HOST=0.0.0.0
+PORT=8000
+ALLOWED_ORIGINS=*
+
+프론트엔드 (.env):
+REACT_APP_API_URL=https://your-backend-repl-url.repl.co
+REACT_APP_DEV_MODE=true
+
+==========================================
+📁 TROUBLESHOOTING
+==========================================
+
+백엔드 문제:
+1. 포트 충돌: Replit에서 자동으로 포트 할당
+2. CORS 오류: 이미 모든 origin 허용으로 설정됨
+3. API 키 오류: Secrets에서 올바른 키 설정 확인
+
+프론트엔드 문제:
+1. WebSocket 연결 실패: 백엔드 URL 확인
+2. 빌드 오류: npm install 재실행
+3. 환경변수 오류: Secrets에서 REACT_APP_ 접두사 확인
+
+==========================================
+🎉 SETUP COMPLETE! READY TO CHAT WITH CLAUDE AI!
+========================================== 

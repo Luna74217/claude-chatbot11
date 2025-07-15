@@ -1,0 +1,5 @@
+# 백엔드 API URL (Replit URL로 변경)
+REACT_APP_API_URL=https://your-backend-repl-url.repl.co
+
+# 개발 모드
+REACT_APP_DEV_MODE=true 
