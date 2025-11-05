@@ -106,7 +106,7 @@ class ClaudeClient:
     def __init__(self, api_key: str):
         self.client = anthropic.Anthropic(api_key=api_key)
     
-    async def get_response(self, user_message: str, model: str = "claude-3-opus-4-20250514", context_messages: Optional[List[Dict[str, str]]] = None) -> str:
+    async def get_response(self, user_message: str, model: str = "claude-3-5-sonnet-20241022", context_messages: Optional[List[Dict[str, str]]] = None) -> str:
         try:
             # 컨텍스트 메시지가 있으면 포함
             messages = []
@@ -129,7 +129,7 @@ class ClaudeClient:
             logger.error(f"Claude API 오류: {str(e)}")
             return f"Claude API 오류: {str(e)}"
     
-    async def get_streaming_response(self, user_message: str, model: str = "claude-3-opus-4-20250514") -> AsyncGenerator[str, None]:
+    async def get_streaming_response(self, user_message: str, model: str = "claude-3-5-sonnet-20241022") -> AsyncGenerator[str, None]:
         """스트리밍 응답 생성 (시뮬레이션)"""
         try:
             # 실제 Claude API 호출
@@ -146,7 +146,7 @@ class ClaudeClient:
             logger.error(f"Claude API 스트리밍 오류: {str(e)}")
             yield f"Claude API 오류: {str(e)}"
     
-    async def get_transformed_stream(self, user_message: str, transformer_configs: Optional[list[Dict[str, Any]]] = None, model: str = "claude-3-opus-4-20250514") -> AsyncGenerator[str, None]:
+    async def get_transformed_stream(self, user_message: str, transformer_configs: Optional[list[Dict[str, Any]]] = None, model: str = "claude-3-5-sonnet-20241022") -> AsyncGenerator[str, None]:
         """변환기가 적용된 스트리밍 응답"""
         # 기본 변환기 설정
         if transformer_configs is None:

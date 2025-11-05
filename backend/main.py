@@ -133,7 +133,7 @@ class StreamingClaude:
             if self.client:
                 # 실제 Claude API 스트리밍
                 stream = self.client.messages.create(
-                    model="claude-3-opus-4-20250514",
+                    model="claude-3-5-sonnet-20241022",
                     messages=[{"role": "user", "content": message}],
                     max_tokens=1024,
                     stream=True
