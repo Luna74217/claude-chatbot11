@@ -203,3 +203,8 @@ Thumbs.db
 
 # Poetry
 poetry.lock 
+# Local database files
+local_storage.json
+backend/local_storage.json
+*.db
+*.sqlite
