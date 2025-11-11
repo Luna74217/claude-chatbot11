@@ -19,7 +19,7 @@ def main():
     
     # 환경변수에서 설정 가져오기
     host = os.getenv('HOST', '0.0.0.0')
-    port = int(os.getenv('PORT', 8080))
+    port = int(os.getenv('PORT', 8000))
     debug = os.getenv('DEBUG', 'True').lower() == 'true'
     
     print(f"🚀 Claude Chatbot 서버 시작 중...")
@@ -34,9 +34,9 @@ def main():
         print("   backend/env_replit.txt 파일에서 API 키를 설정해주세요.")
     
     try:
-        # FastAPI 앱 import
-        from backend.main_replit_improved import app
-        
+        # FastAPI 앱 import (sys.path.append('backend') 덕분에 main으로 import 가능)
+        from main import app
+
         # 서버 실행
         uvicorn.run(
             app,
@@ -45,10 +45,11 @@ def main():
             log_level="info",
             reload=debug
         )
-        
+
     except ImportError as e:
         print(f"❌ 모듈 import 오류: {e}")
-        print("   backend/main_replit_improved.py 파일이 존재하는지 확인해주세요.")
+        print("   backend/main.py 파일이 존재하는지 확인해주세요.")
+        print(f"   sys.path: {sys.path}")
         sys.exit(1)
     except Exception as e:
         print(f"❌ 서버 실행 오류: {e}")

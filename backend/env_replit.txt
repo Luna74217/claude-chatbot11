@@ -3,7 +3,7 @@ ANTHROPIC_API_KEY=your_anthropic_api_key_here
 
 # Replit 서버 설정
 HOST=0.0.0.0
-PORT=8080
+PORT=8000
 
 # 보안 설정
 SECRET_KEY=your_secret_key_here
