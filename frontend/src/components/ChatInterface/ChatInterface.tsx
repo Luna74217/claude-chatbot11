@@ -105,8 +105,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ apiUrl = API_URL }) => {
             timestamp: messageData.timestamp,
             isStreaming: true
           };
-          
-          addMessage(activeConversation, streamResponse);
+
+          if (activeConversation) {
+            addMessage(activeConversation, streamResponse);
+          }
           setMessages(prev => [...prev, streamResponse]);
         } else if (messageData.type === 'stream_chunk') {
           // 스트리밍 청크
@@ -136,8 +138,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ apiUrl = API_URL }) => {
             content: messageData.content || '',
             timestamp: messageData.timestamp
           };
-          
-          addMessage(activeConversation, fileResponse);
+
+          if (activeConversation) {
+            addMessage(activeConversation, fileResponse);
+          }
           setMessages(prev => [...prev, fileResponse]);
         }
       } catch (error) {
@@ -242,7 +246,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ apiUrl = API_URL }) => {
     };
 
     // 사용자 메시지 추가
-    addMessage(activeConversation, userMessage);
+    if (activeConversation) {
+      addMessage(activeConversation, userMessage);
+    }
     setMessages(prev => [...prev, userMessage]);
     
     // 변환기가 선택된 경우 스트리밍 모드로 전송

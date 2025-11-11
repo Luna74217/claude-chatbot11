@@ -120,8 +120,9 @@ export const revokeFilePreview = (previewUrl: string | null): void => {
 // 파일 정보 객체 생성
 export const createFileInfo = (file: File): FileInfo => {
   validateFile(file);
-  
+
   return {
+    id: Date.now() + Math.random(), // 고유 ID 생성
     name: file.name,
     type: file.type,
     size: file.size,

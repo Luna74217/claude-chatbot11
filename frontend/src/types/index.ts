@@ -127,7 +127,7 @@ export interface SidebarProps {
   searchMode: 'all' | 'title' | 'content';
   setSearchMode: (mode: 'all' | 'title' | 'content') => void;
   conversations: Conversation[];
-  activeConversation: string;
+  activeConversation: string | null;
   filteredConversations: Conversation[];
   isSearching: boolean;
   startNewChat: () => void;
@@ -147,7 +147,7 @@ export interface ChatAreaProps {
   showSettings: boolean;
   setShowSettings: (show: boolean) => void;
   conversations: Conversation[];
-  activeConversation: string;
+  activeConversation: string | null;
   messages: Message[];
   isTyping: boolean;
   inputValue: string;
@@ -157,9 +157,9 @@ export interface ChatAreaProps {
   searchQuery: string;
   isSearching: boolean;
   copiedId: number | null;
-  messagesEndRef: React.RefObject<HTMLDivElement>;
-  textareaRef: React.RefObject<HTMLTextAreaElement>;
-  fileInputRef: React.RefObject<HTMLInputElement>;
+  messagesEndRef: React.RefObject<HTMLDivElement | null>;
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
   handleSend: () => void;
   handleFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleDragOver: (e: React.DragEvent) => void;
@@ -187,7 +187,7 @@ export interface SettingsModalProps {
   setDarkMode: (darkMode: boolean) => void;
   fontSize: Settings['fontSize'];
   setFontSize: (fontSize: Settings['fontSize']) => void;
-  activeConversation: string;
+  activeConversation: string | null;
   conversations: Conversation[];
   deleteConversation: (id: string) => void;
   deleteAllConversations: () => void;
